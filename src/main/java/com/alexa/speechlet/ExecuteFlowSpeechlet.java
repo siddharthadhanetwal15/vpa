@@ -11,13 +11,13 @@ import com.amazon.speech.ui.Reprompt;
 import com.amazon.speech.ui.SimpleCard;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import main.java.com.alexa.vo.FlowInputVO;
-import main.java.com.alexa.vo.EC2InstanceVO;
-import main.java.com.alexa.vo.S3BucketVO;
+import main.java.com.alexa.util.SpeechToValidValuesUtil;
+import main.java.com.alexa.vo.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.net.ssl.*;
+import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.Reader;
@@ -32,6 +32,9 @@ public class ExecuteFlowSpeechlet implements Speechlet {
     public static final String PROVIDER_PASSWORD = "zYqFxY5H9SesrPh6jZcDokvwSmbKhp3jN9Rs4waK";
     public static final String CREATE_BUCKET_FLOW_UUID = "d689396e-1f48-4f1f-bd78-882f554c26ce";
     public static final String DEPLOY_INSTANCE_FLOW_UUID = "2bfe954e-7a22-480e-b32c-5e05da76446f";
+    public static final String OO_URL = "https://52.90.34.74:8445/oo/";
+    public static final String V2_EXECUTIONS = "rest/v2/executions";
+    public static final String V2_EXECUTION_LOG = "execution-log";
     @Override
     public void onSessionStarted(final SessionStartedRequest request, final Session session)
             throws SpeechletException {
@@ -45,48 +48,15 @@ public class ExecuteFlowSpeechlet implements Speechlet {
             throws SpeechletException {
         log.info("onLaunch requestId={}, sessionId={}", request.getRequestId(),
                 session.getSessionId());
-        /*TrustManager[] trustAllCerts = new TrustManager[] {new X509TrustManager() {
-            public java.security.cert.X509Certificate[] getAcceptedIssuers() {
-                return null;
-            }
-            public void checkClientTrusted(X509Certificate[] certs, String authType) {
-            }
-            public void checkServerTrusted(X509Certificate[] certs, String authType) {
-            }
-        }
-        };
-        // Install the all-trusting trust manager
-        try {
-            SSLContext sc = SSLContext.getInstance("SSL");
-            sc.init(null, trustAllCerts, new java.security.SecureRandom());
-            HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
-
-            // Create all-trusting host name verifier
-            HostnameVerifier allHostsValid = new HostnameVerifier() {
-                public boolean verify(String hostname, SSLSession session) {
-                    return true;
-                }
-            };
-
-            // Install the all-trusting host verifier
-            HttpsURLConnection.setDefaultHostnameVerifier(allHostsValid);
-
-            URL url = new URL("https://34.201.66.172:8445/oo/rest/v2/executions");
-            HttpsURLConnection con = (HttpsURLConnection) url.openConnection();
-            con.setRequestMethod("GET");
-            con.setRequestProperty("Authorization", "Basic YWRtaW46YWRtaW4=");
-            Reader reader = new InputStreamReader(con.getInputStream());
-            while (true) {
-                int ch = reader.read();
-                if (ch == -1) {
-                    break;
-                }
-                System.out.print((char) ch);
-            }
-        } catch (Exception ex){
-            log.error(String.valueOf(ex));
-        }*/
         return getWelcomeResponse();
+    }
+
+    @Override
+    public void onSessionEnded(final SessionEndedRequest request, final Session session)
+            throws SpeechletException {
+        log.info("onSessionEnded requestId={}, sessionId={}", request.getRequestId(),
+                session.getSessionId());
+        // any cleanup logic goes here
     }
 
     @SuppressWarnings("rawtypes")
@@ -101,7 +71,7 @@ public class ExecuteFlowSpeechlet implements Speechlet {
 
         //Get Dialog State
         IntentRequest.DialogState dialogueState = request.getDialogState();
-
+        log.debug("Intent Name: "+intentName);
         if ("CreateBucket".equals(intentName)) {
 
             //If the IntentRequest dialog state is STARTED and you accept Utterances that
@@ -298,41 +268,14 @@ public class ExecuteFlowSpeechlet implements Speechlet {
             }
         }else if ("AMAZON.HelpIntent".equals(intentName)) {
             return getHelpResponse();
+        }else if ("AMAZON.StopIntent".equals(intentName)) {
+            return getStopResponse();
+        }else if ("AMAZON.CancelIntent".equals(intentName)) {
+            return getCancelResponse();
         } else {
+            log.debug("when no matching flow/intent found");
             throw new SpeechletException("Invalid Intent");
         }
-    }
-
-    @Override
-    public void onSessionEnded(final SessionEndedRequest request, final Session session)
-            throws SpeechletException {
-        log.info("onSessionEnded requestId={}, sessionId={}", request.getRequestId(),
-                session.getSessionId());
-        // any cleanup logic goes here
-    }
-
-    /**
-     * Creates and returns a {@code SpeechletResponse} with a welcome message.
-     *
-     * @return SpeechletResponse spoken and visual response for the given intent
-     */
-    private SpeechletResponse getWelcomeResponse() {
-        String speechText = "Welcome to Voice Process Automation tool. Which flow do you want to execute?";
-
-        // Create the Simple card content.
-        SimpleCard card = new SimpleCard();
-        card.setTitle("HelloWorld");
-        card.setContent(speechText);
-
-        // Create the plain text output.
-        PlainTextOutputSpeech speech = new PlainTextOutputSpeech();
-        speech.setText(speechText);
-
-        // Create reprompt
-        Reprompt reprompt = new Reprompt();
-        reprompt.setOutputSpeech(speech);
-
-        return SpeechletResponse.newAskResponse(speech, reprompt, card);
     }
 
     /**
@@ -344,6 +287,10 @@ public class ExecuteFlowSpeechlet implements Speechlet {
 
         String bucketName = intent.getSlot("bucketName").getValue();
         String bucketRegion = intent.getSlot("bucketRegion").getValue();
+        bucketRegion = SpeechToValidValuesUtil.getAWSRegion(bucketRegion.toLowerCase());
+        if(bucketRegion == null){
+            log.debug("Bucket region not found");
+        }
         FlowInputVO flowInputVO = new FlowInputVO();
         flowInputVO.setFlowUuid(CREATE_BUCKET_FLOW_UUID);
         S3BucketVO s3BucketVO = new S3BucketVO();
@@ -356,20 +303,54 @@ public class ExecuteFlowSpeechlet implements Speechlet {
         Gson gson = new GsonBuilder().setPrettyPrinting().create();
         String bucketData = gson.toJson(flowInputVO);
         log.info(bucketData);
-        int status = callOOFlowExecutorAPI(bucketData);
         String speechText = "";
-        if(status == 201) {
-            speechText = "A bucket named " + bucketName + ", has been created in " + bucketRegion;
-        }
-        // Create the Simple card content.
-        SimpleCard card = new SimpleCard();
-        card.setTitle("CreateBucket");
-        card.setContent(speechText);
-
         // Create the plain text output.
         PlainTextOutputSpeech speech = new PlainTextOutputSpeech();
-        speech.setText(speechText);
+        // Create the Simple card content.
+        SimpleCard card = new SimpleCard();
+        FlowStatusVO flowStatusVO = callOOFlowExecutorAPI(bucketData);
+        if(flowStatusVO.getStatus() == 201) {
+            //This block we have to change in future if we have to say that this flow has been executed. For now checking result from execution-log api and returning to alexa
+            /*speechText = "Create bucket flow executed successfully. Please wait while we get you created bucket details.";
+            card.setTitle("CreateBucket flow executed");
+            card.setContent(speechText);
+            // Create the plain text output.
+            PlainTextOutputSpeech speech = new PlainTextOutputSpeech();
+            speech.setText(speechText);
+            // Create reprompt
+            Reprompt reprompt = new Reprompt();
+            reprompt.setOutputSpeech(speech);*/
+            //SpeechletResponse.newTellResponse(speech, card);
+            //"A bucket named " + bucketName + ", has been created in " + bucketRegion;
 
+            log.debug(flowStatusVO.getExecutionId());
+            ExecutionLogVO executionLogVO = checkOOFlowExecutionStatus(flowStatusVO.getExecutionId());
+            String statusName = executionLogVO.getExecutionSummary().getResultStatusName();
+            log.debug("status name: "+statusName);
+            if(statusName.equals("success")){
+                String createdBucketName = executionLogVO.getFlowOutput().getBucketName();
+                String createdBucketRegion = executionLogVO.getFlowOutput().getAwsRegion();
+                if((createdBucketName != null && createdBucketName.length() != 0)&&(createdBucketRegion != null && createdBucketRegion.length() != 0)) {
+                    speechText = "A bucket named " + createdBucketName + ", has been created in " + createdBucketRegion;
+                    card.setTitle("Bucket Created");
+                    card.setContent(speechText);
+                    // Create the plain text output.
+                    speech.setText(speechText);
+                    return SpeechletResponse.newTellResponse(speech, card);
+                }
+            } else{
+                speechText = "Unable to create bucket in AWS! Please check run id: "+flowStatusVO.getExecutionId()+" in OO machine for detailed error.";
+                card.setTitle("Error while creating bucket in AWS. Check run id: "+flowStatusVO.getExecutionId());
+                card.setContent(speechText);
+                // Create the plain text output.
+                speech.setText(speechText);
+                return SpeechletResponse.newTellResponse(speech, card);
+            }
+        }
+        speechText = "Unable to execute create bucket OO flow";
+        card.setTitle("Unable to trigger OO flow execution rest api");
+        card.setContent(speechText);
+        speech.setText(speechText);
         return SpeechletResponse.newTellResponse(speech, card);
     }
 
@@ -378,7 +359,20 @@ public class ExecuteFlowSpeechlet implements Speechlet {
         String instanceRegion = intent.getSlot("InstanceRegion").getValue();
         String amazonMachineImage = intent.getSlot("AMI").getValue();
         String keyPairName = intent.getSlot("KeyPairName").getValue();
-        String subnetId = intent.getSlot("SubnetId").getValue();
+        String subnet = intent.getSlot("SubnetId").getValue();
+        log.debug("instanceName " +instanceName+ "region "+instanceRegion+"ami "+amazonMachineImage+"kp "+keyPairName+"subnet "+subnet);
+        instanceRegion = SpeechToValidValuesUtil.getAWSRegion(instanceRegion.toLowerCase());
+        if(instanceRegion == null){
+            log.debug("Instance region not found");
+        }
+        amazonMachineImage = SpeechToValidValuesUtil.getAMIId(amazonMachineImage.toLowerCase());
+        if(amazonMachineImage == null){
+            log.debug("Amazon machine image not found");
+        }
+        subnet = SpeechToValidValuesUtil.getSubnetId(subnet.toLowerCase());
+        if(subnet == null){
+            log.debug("Subnet not found");
+        }
         FlowInputVO flowInputVO = new FlowInputVO();
         flowInputVO.setFlowUuid(DEPLOY_INSTANCE_FLOW_UUID);
         EC2InstanceVO ec2InstanceVO = new EC2InstanceVO();
@@ -386,7 +380,7 @@ public class ExecuteFlowSpeechlet implements Speechlet {
         ec2InstanceVO.setRegion(instanceRegion);
         ec2InstanceVO.setAmiId(amazonMachineImage);
         ec2InstanceVO.setKeyName(keyPairName);
-        ec2InstanceVO.setSubnetId(subnetId);
+        ec2InstanceVO.setSubnetId(subnet);
         ec2InstanceVO.setProviderSAP(PROVIDER_SAP);
         ec2InstanceVO.setProviderUsername(PROVIDER_USERNAME);
         ec2InstanceVO.setProviderPassword(PROVIDER_PASSWORD);
@@ -394,48 +388,51 @@ public class ExecuteFlowSpeechlet implements Speechlet {
         Gson gson = new GsonBuilder().setPrettyPrinting().create();
         String instanceData = gson.toJson(flowInputVO);
         log.info(instanceData);
-        int status = callOOFlowExecutorAPI(instanceData);
+        FlowStatusVO flowStatusVO = callOOFlowExecutorAPI(instanceData);
         String speechText = "";
-        if(status == 201) {
-            speechText = instanceName + " instance has been deployed in " +instanceRegion+ " with " + keyPairName+ " key pair value.";
-        }
-        // Create the Simple card content.
-        SimpleCard card = new SimpleCard();
-        card.setTitle("Deploy Instance");
-        card.setContent(speechText);
-
         // Create the plain text output.
         PlainTextOutputSpeech speech = new PlainTextOutputSpeech();
+        // Create the Simple card content.
+        SimpleCard card = new SimpleCard();
+        ExecutionLogVO executionLogVO1;
+        if(flowStatusVO.getStatus() == 201) {
+            //This block we have to change in future if we have to say that this flow has been executed. For now checking result from execution-log api and returning to alexa
+            /*speechText = instanceName + " instance has been deployed in " +instanceRegion+ " with " + keyPairName+ " key pair value.";
+            * */
+            log.debug(flowStatusVO.getExecutionId());
+            executionLogVO1 = checkOOFlowExecutionStatus(flowStatusVO.getExecutionId());
+            String statusName = executionLogVO1.getExecutionSummary().getResultStatusName();
+            String temp = executionLogVO1.getExecutionSummary().getResultStatusType();
+            log.debug("status name: "+statusName + ", type: "+temp);
+            if(statusName.equals("success")){
+                String instanceId = executionLogVO1.getFlowOutput().getInstanceId();
+                String availabilityZone = executionLogVO1.getFlowOutput().getAvailabilityZone();
+                if((instanceId != null && instanceId.length() != 0)&&(availabilityZone != null && availabilityZone.length() != 0)) {
+                    speechText = instanceName + " instance successfully deployed in " + availabilityZone + " availability zone with instance id: " + instanceId;
+                    card.setTitle("AWS EC2 instance deployed successfully");
+                    card.setContent(speechText);
+                    speech.setText(speechText);
+                    return SpeechletResponse.newTellResponse(speech, card);
+                }
+            } else{
+                speechText = "Unable to deploy instance in AWS! Please check run id: "+flowStatusVO.getExecutionId()+" in OO machine for detailed error.";
+                card.setTitle("Error while deploying instance in AWS. Check run id: "+flowStatusVO.getExecutionId());
+                card.setContent(speechText);
+                // Create the plain text output.
+                speech.setText(speechText);
+                return SpeechletResponse.newTellResponse(speech, card);
+            }
+        }
+        speechText = "Unable to execute deploy instance OO flow";
+        card.setTitle("Unable to execute deploy instance OO flow");
+        card.setContent(speechText);
         speech.setText(speechText);
-
         return SpeechletResponse.newTellResponse(speech, card);
     }
 
-    /**
-     * Creates a {@code SpeechletResponse} for the help intent.
-     *
-     * @return SpeechletResponse spoken and visual response for the given intent
-     */
-    private SpeechletResponse getHelpResponse() {
-        String speechText = "You can say hello to me!";
-
-        // Create the Simple card content.
-        SimpleCard card = new SimpleCard();
-        card.setTitle("HelloWorld");
-        card.setContent(speechText);
-
-        // Create the plain text output.
-        PlainTextOutputSpeech speech = new PlainTextOutputSpeech();
-        speech.setText(speechText);
-
-        // Create reprompt
-        Reprompt reprompt = new Reprompt();
-        reprompt.setOutputSpeech(speech);
-
-        return SpeechletResponse.newAskResponse(speech, reprompt, card);
-    }
-    private int callOOFlowExecutorAPI(String data) {
+    private FlowStatusVO callOOFlowExecutorAPI(String data) {
         int status = 0;
+        String output = null;
         TrustManager[] trustAllCerts = new TrustManager[] {new X509TrustManager() {
             public java.security.cert.X509Certificate[] getAcceptedIssuers() {
                 return null;
@@ -462,7 +459,7 @@ public class ExecuteFlowSpeechlet implements Speechlet {
             // Install the all-trusting host verifier
             HttpsURLConnection.setDefaultHostnameVerifier(allHostsValid);
 
-            URL url = new URL("https://34.201.66.172:8445/oo/rest/v2/executions");
+            URL url = new URL(OO_URL+V2_EXECUTIONS);
             HttpsURLConnection con = (HttpsURLConnection) url.openConnection();
             con.setRequestMethod("POST");
             con.setDoOutput(true);
@@ -473,47 +470,161 @@ public class ExecuteFlowSpeechlet implements Speechlet {
             wr.write(data);
             wr.flush();
             status = con.getResponseCode();
-            log.info(String.valueOf(status));
-            Reader reader = new InputStreamReader(con.getInputStream());
-            while (true) {
-                int ch = reader.read();
-                if (ch == -1) {
-                    break;
+
+            BufferedReader br = new BufferedReader(new InputStreamReader(
+                    (con.getInputStream())));
+            output = br.readLine();
+        } catch (Exception ex){
+            log.error(String.valueOf(ex));
+        }
+        FlowStatusVO flowStatusVO = new FlowStatusVO();
+        log.debug("execution id: "+ output);
+        flowStatusVO.setExecutionId(output);
+        flowStatusVO.setStatus(status);
+        return flowStatusVO;
+    }
+
+    public ExecutionLogVO checkOOFlowExecutionStatus(String executionId){
+        int status = 0;
+        String executionLog = null;
+        ExecutionLogVO executionLogVO = null;
+        TrustManager[] trustAllCerts = new TrustManager[] {new X509TrustManager() {
+            public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+                return null;
+            }
+            public void checkClientTrusted(X509Certificate[] certs, String authType) {
+            }
+            public void checkServerTrusted(X509Certificate[] certs, String authType) {
+            }
+        }
+        };
+        // Install the all-trusting trust manager
+        try {
+            SSLContext sc = SSLContext.getInstance("SSL");
+            sc.init(null, trustAllCerts, new java.security.SecureRandom());
+            HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+
+            // Create all-trusting host name verifier
+            HostnameVerifier allHostsValid = new HostnameVerifier() {
+                public boolean verify(String hostname, SSLSession session) {
+                    return true;
                 }
-                System.out.print((char) ch);
+            };
+            Thread.sleep(3000);
+            log.debug("Main thread waiting for 7 seconds");
+            // Install the all-trusting host verifier
+            HttpsURLConnection.setDefaultHostnameVerifier(allHostsValid);
+
+            URL url = new URL(OO_URL+V2_EXECUTIONS + "/" + executionId + "/" +V2_EXECUTION_LOG);
+            HttpsURLConnection con = (HttpsURLConnection) url.openConnection();
+            con.setRequestMethod("GET");
+            con.setDoOutput(true);
+            con.setDoInput(true);
+            con.setRequestProperty("Authorization", "Basic YWRtaW46YWRtaW4=");
+            con.setRequestProperty("Content-Type", "application/json");
+            status = con.getResponseCode();
+            log.info(String.valueOf(status));
+            BufferedReader br = new BufferedReader(new InputStreamReader(
+                    (con.getInputStream())));
+            executionLog = br.readLine();
+
+            log.debug("execution log: " + executionLog);
+            GsonBuilder gson = new GsonBuilder();
+            executionLogVO = gson.create().fromJson(executionLog, ExecutionLogVO.class);
+            String executionStatus = executionLogVO.getExecutionSummary().getStatus();
+            log.debug("upper execution summary status: "+executionLogVO.getExecutionSummary().getResultStatusName());
+            if(!executionStatus.equals("COMPLETED")){
+                checkOOFlowExecutionStatus(executionId);
+            }else {
+                log.debug("execution status: "+executionStatus);
+                log.debug("execution summary status: "+executionLogVO.getExecutionSummary().getResultStatusName());
+                return executionLogVO;
             }
         } catch (Exception ex){
             log.error(String.valueOf(ex));
         }
-        return status;
+        return executionLogVO;
     }
-    /*private int callDeployInstanceOOFlowExecutorAPI(String data) {
-        Response response = null;
-        int status = 0;
-        try {
-            ResteasyClientBuilder resteasyClientBuilder = new ResteasyClientBuilder();
-            resteasyClientBuilder.hostnameVerification(ResteasyClientBuilder.HostnameVerificationPolicy.ANY)
-                    .maxPooledPerRoute(10)
-                    .connectionPoolSize(10);
-            ResteasyClient resteasyClient = resteasyClientBuilder.build();
-            ResteasyWebTarget resteasyWebTarget = resteasyClient.target("https://wky69swq7i.execute-api.us-east-1.amazonaws.com/staging");
-            response = response = resteasyWebTarget.request()
-                    .header("Content-Type", "application/json")
-                    .header("Accept", "application/json")
-                    .post(Entity.entity(data, "application/json"));
-            if (!(response.getStatus() == 200)) {
-                throw new Exception("Rest POST request failed with status " + response.getStatus());
-            }
-            //String responseString = response.readEntity(String.class);
-            status = response.getStatus();
-            return status;
-        } catch (Exception e){
-            System.out.println(e);
-        } finally {
-            if(response != null){
-                response.close();
-            }
-        }
-        return status;
-    }*/
+
+    /**
+     * Creates and returns a {@code SpeechletResponse} with a welcome message.
+     *
+     * @return SpeechletResponse spoken and visual response for the given intent
+     */
+    private SpeechletResponse getWelcomeResponse() {
+        String speechText = "Welcome to Voice Process Automation tool. Which flow do you want to execute?";
+
+        // Create the Simple card content.
+        SimpleCard card = new SimpleCard();
+        card.setTitle("HelloWorld");
+        card.setContent(speechText);
+
+        // Create the plain text output.
+        PlainTextOutputSpeech speech = new PlainTextOutputSpeech();
+        speech.setText(speechText);
+
+        // Create reprompt
+        Reprompt reprompt = new Reprompt();
+        reprompt.setOutputSpeech(speech);
+
+        return SpeechletResponse.newAskResponse(speech, reprompt, card);
+    }
+
+    private SpeechletResponse getStopResponse() {
+        String speechText = "Flow executor stopped";
+
+        // Create the Simple card content.
+        SimpleCard card = new SimpleCard();
+        card.setTitle("Flow executor stopped");
+        card.setContent(speechText);
+
+        // Create the plain text output.
+        PlainTextOutputSpeech speech = new PlainTextOutputSpeech();
+        speech.setText(speechText);
+
+        return SpeechletResponse.newTellResponse(speech, card);
+    }
+
+    private SpeechletResponse getCancelResponse() {
+        String speechText = "Current flow canceled. Do you want to run any other flow?";
+
+        // Create the Simple card content.
+        SimpleCard card = new SimpleCard();
+        card.setTitle("Current flow canceled. Do you want to run any other flow?");
+        card.setContent(speechText);
+
+        // Create the plain text output.
+        PlainTextOutputSpeech speech = new PlainTextOutputSpeech();
+        speech.setText(speechText);
+
+        // Create reprompt
+        Reprompt reprompt = new Reprompt();
+        reprompt.setOutputSpeech(speech);
+
+        return SpeechletResponse.newAskResponse(speech, reprompt, card);
+    }
+
+    /**
+     * Creates a {@code SpeechletResponse} for the help intent.
+     *
+     * @return SpeechletResponse spoken and visual response for the given intent
+     */
+    private SpeechletResponse getHelpResponse() {
+        String speechText = "You can say flow name here like create a bucket or deploy an instance";
+
+        // Create the Simple card content.
+        SimpleCard card = new SimpleCard();
+        card.setTitle("say create a bucket or deploy an instance");
+        card.setContent(speechText);
+
+        // Create the plain text output.
+        PlainTextOutputSpeech speech = new PlainTextOutputSpeech();
+        speech.setText(speechText);
+
+        // Create reprompt
+        Reprompt reprompt = new Reprompt();
+        reprompt.setOutputSpeech(speech);
+
+        return SpeechletResponse.newAskResponse(speech, reprompt, card);
+    }
 }
