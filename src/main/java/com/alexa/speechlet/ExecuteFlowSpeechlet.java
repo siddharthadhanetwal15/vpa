@@ -304,13 +304,11 @@ public class ExecuteFlowSpeechlet implements Speechlet {
         String bucketData = gson.toJson(flowInputVO);
         log.info(bucketData);
         String speechText = "";
-        // Create the plain text output.
         PlainTextOutputSpeech speech = new PlainTextOutputSpeech();
         // Create the Simple card content.
         SimpleCard card = new SimpleCard();
         FlowStatusVO flowStatusVO = callOOFlowExecutorAPI(bucketData);
         if(flowStatusVO.getStatus() == 201) {
-            //This block we have to change in future if we have to say that this flow has been executed. For now checking result from execution-log api and returning to alexa
             /*speechText = "Create bucket flow executed successfully. Please wait while we get you created bucket details.";
             card.setTitle("CreateBucket flow executed");
             card.setContent(speechText);
@@ -319,12 +317,12 @@ public class ExecuteFlowSpeechlet implements Speechlet {
             speech.setText(speechText);
             // Create reprompt
             Reprompt reprompt = new Reprompt();
-            reprompt.setOutputSpeech(speech);*/
-            //SpeechletResponse.newTellResponse(speech, card);
+            reprompt.setOutputSpeech(speech);
+            SpeechletResponse.newAskResponse(speech, card);*/
             //"A bucket named " + bucketName + ", has been created in " + bucketRegion;
 
             log.debug(flowStatusVO.getExecutionId());
-            ExecutionLogVO executionLogVO = checkOOFlowExecutionStatus(flowStatusVO.getExecutionId());
+            ExecutionLogVO executionLogVO = checkBucketExecutionStatus(flowStatusVO.getExecutionId());
             String statusName = executionLogVO.getExecutionSummary().getResultStatusName();
             log.debug("status name: "+statusName);
             if(statusName.equals("success")){
@@ -347,10 +345,13 @@ public class ExecuteFlowSpeechlet implements Speechlet {
                 return SpeechletResponse.newTellResponse(speech, card);
             }
         }
-        speechText = "Unable to execute create bucket OO flow";
+        speechText = "Unable to execute create bucket flow";
         card.setTitle("Unable to trigger OO flow execution rest api");
         card.setContent(speechText);
+
+        // Create the plain text output.
         speech.setText(speechText);
+
         return SpeechletResponse.newTellResponse(speech, card);
     }
 
@@ -390,43 +391,42 @@ public class ExecuteFlowSpeechlet implements Speechlet {
         log.info(instanceData);
         FlowStatusVO flowStatusVO = callOOFlowExecutorAPI(instanceData);
         String speechText = "";
+        SimpleCard card = new SimpleCard();
         // Create the plain text output.
         PlainTextOutputSpeech speech = new PlainTextOutputSpeech();
-        // Create the Simple card content.
-        SimpleCard card = new SimpleCard();
-        ExecutionLogVO executionLogVO1;
         if(flowStatusVO.getStatus() == 201) {
-            //This block we have to change in future if we have to say that this flow has been executed. For now checking result from execution-log api and returning to alexa
-            /*speechText = instanceName + " instance has been deployed in " +instanceRegion+ " with " + keyPairName+ " key pair value.";
-            * */
+            //speechText = instanceName + " instance has been deployed in " +instanceRegion+ " with " + keyPairName+ " key pair value.";
             log.debug(flowStatusVO.getExecutionId());
-            executionLogVO1 = checkOOFlowExecutionStatus(flowStatusVO.getExecutionId());
-            String statusName = executionLogVO1.getExecutionSummary().getResultStatusName();
-            String temp = executionLogVO1.getExecutionSummary().getResultStatusType();
-            log.debug("status name: "+statusName + ", type: "+temp);
+            ExecutionLogVO executionLogVO = checkDeployInstanceExecutionStatus(flowStatusVO.getExecutionId());
+            String statusName = executionLogVO.getExecutionSummary().getResultStatusName();
+            log.debug("status name: "+statusName);
             if(statusName.equals("success")){
-                String instanceId = executionLogVO1.getFlowOutput().getInstanceId();
-                String availabilityZone = executionLogVO1.getFlowOutput().getAvailabilityZone();
+                String instanceId = executionLogVO.getFlowOutput().getInstanceId();
+                String availabilityZone = executionLogVO.getFlowOutput().getAvailabilityZone();
+                log.debug("inside success");
                 if((instanceId != null && instanceId.length() != 0)&&(availabilityZone != null && availabilityZone.length() != 0)) {
-                    speechText = instanceName + " instance successfully deployed in " + availabilityZone + " availability zone with instance id: " + instanceId;
-                    card.setTitle("AWS EC2 instance deployed successfully");
+                    log.debug("inside success if");
+                    speechText = instanceName+ " instance has been deployed in " +availabilityZone+ " availability zone and it's instance id is: "+instanceId;
+                    card.setTitle("Instance Deployed");
                     card.setContent(speechText);
+                    // Create the plain text output.
                     speech.setText(speechText);
                     return SpeechletResponse.newTellResponse(speech, card);
                 }
             } else{
                 speechText = "Unable to deploy instance in AWS! Please check run id: "+flowStatusVO.getExecutionId()+" in OO machine for detailed error.";
-                card.setTitle("Error while deploying instance in AWS. Check run id: "+flowStatusVO.getExecutionId());
+                card.setTitle("Error while deploy instance in AWS. Check run id: "+flowStatusVO.getExecutionId());
                 card.setContent(speechText);
                 // Create the plain text output.
                 speech.setText(speechText);
                 return SpeechletResponse.newTellResponse(speech, card);
             }
         }
-        speechText = "Unable to execute deploy instance OO flow";
-        card.setTitle("Unable to execute deploy instance OO flow");
+        // Create the Simple card content.
+        card.setTitle("Unable to trigger OO flow for deploy instance");
         card.setContent(speechText);
         speech.setText(speechText);
+
         return SpeechletResponse.newTellResponse(speech, card);
     }
 
@@ -484,7 +484,7 @@ public class ExecuteFlowSpeechlet implements Speechlet {
         return flowStatusVO;
     }
 
-    public ExecutionLogVO checkOOFlowExecutionStatus(String executionId){
+    public ExecutionLogVO checkBucketExecutionStatus(String executionId){
         int status = 0;
         String executionLog = null;
         ExecutionLogVO executionLogVO = null;
@@ -510,8 +510,8 @@ public class ExecuteFlowSpeechlet implements Speechlet {
                     return true;
                 }
             };
-            Thread.sleep(3000);
-            log.debug("Main thread waiting for 7 seconds");
+            Thread.sleep(10000);
+            log.debug("Main thread waiting for 10 seconds");
             // Install the all-trusting host verifier
             HttpsURLConnection.setDefaultHostnameVerifier(allHostsValid);
 
@@ -532,14 +532,64 @@ public class ExecuteFlowSpeechlet implements Speechlet {
             GsonBuilder gson = new GsonBuilder();
             executionLogVO = gson.create().fromJson(executionLog, ExecutionLogVO.class);
             String executionStatus = executionLogVO.getExecutionSummary().getStatus();
-            log.debug("upper execution summary status: "+executionLogVO.getExecutionSummary().getResultStatusName());
-            if(!executionStatus.equals("COMPLETED")){
-                checkOOFlowExecutionStatus(executionId);
-            }else {
-                log.debug("execution status: "+executionStatus);
-                log.debug("execution summary status: "+executionLogVO.getExecutionSummary().getResultStatusName());
-                return executionLogVO;
+            log.debug("execution status: "+executionStatus);
+
+        } catch (Exception ex){
+            log.error(String.valueOf(ex));
+        }
+        return executionLogVO;
+    }
+
+    public ExecutionLogVO checkDeployInstanceExecutionStatus(String executionId){
+        int status = 0;
+        String executionLog = null;
+        ExecutionLogVO executionLogVO = null;
+        TrustManager[] trustAllCerts = new TrustManager[] {new X509TrustManager() {
+            public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+                return null;
             }
+            public void checkClientTrusted(X509Certificate[] certs, String authType) {
+            }
+            public void checkServerTrusted(X509Certificate[] certs, String authType) {
+            }
+        }
+        };
+        // Install the all-trusting trust manager
+        try {
+            SSLContext sc = SSLContext.getInstance("SSL");
+            sc.init(null, trustAllCerts, new java.security.SecureRandom());
+            HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+
+            // Create all-trusting host name verifier
+            HostnameVerifier allHostsValid = new HostnameVerifier() {
+                public boolean verify(String hostname, SSLSession session) {
+                    return true;
+                }
+            };
+            Thread.sleep(30000);
+            log.debug("Main thread waiting for 30 seconds");
+            // Install the all-trusting host verifier
+            HttpsURLConnection.setDefaultHostnameVerifier(allHostsValid);
+
+            URL url = new URL(OO_URL+V2_EXECUTIONS + "/" + executionId + "/" +V2_EXECUTION_LOG);
+            HttpsURLConnection con = (HttpsURLConnection) url.openConnection();
+            con.setRequestMethod("GET");
+            con.setDoOutput(true);
+            con.setDoInput(true);
+            con.setRequestProperty("Authorization", "Basic YWRtaW46YWRtaW4=");
+            con.setRequestProperty("Content-Type", "application/json");
+            status = con.getResponseCode();
+            log.info(String.valueOf(status));
+            BufferedReader br = new BufferedReader(new InputStreamReader(
+                    (con.getInputStream())));
+            executionLog = br.readLine();
+
+            log.debug("execution log: " + executionLog);
+            GsonBuilder gson = new GsonBuilder();
+            executionLogVO = gson.create().fromJson(executionLog, ExecutionLogVO.class);
+            String executionStatus = executionLogVO.getExecutionSummary().getStatus();
+            log.debug("execution status: "+executionStatus);
+
         } catch (Exception ex){
             log.error(String.valueOf(ex));
         }

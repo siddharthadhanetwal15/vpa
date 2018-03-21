@@ -8,6 +8,15 @@ public class FlowOutputVO {
     private String awsRegion;
     private String availabilityZone;
     private String instanceId;
+    private String instanceStatus;
+
+    public String getInstanceStatus() {
+        return instanceStatus;
+    }
+
+    public void setInstanceStatus(String instanceStatus) {
+        this.instanceStatus = instanceStatus;
+    }
 
     public String getAvailabilityZone() {
         return availabilityZone;
