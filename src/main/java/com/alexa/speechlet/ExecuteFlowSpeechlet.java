@@ -288,8 +288,15 @@ public class ExecuteFlowSpeechlet implements Speechlet {
         String bucketName = intent.getSlot("bucketName").getValue();
         String bucketRegion = intent.getSlot("bucketRegion").getValue();
         bucketRegion = SpeechToValidValuesUtil.getAWSRegion(bucketRegion.toLowerCase());
+        String speechText = "";
+        PlainTextOutputSpeech speech = new PlainTextOutputSpeech();
+        // Create the Simple card content.
+        SimpleCard card = new SimpleCard();
         if(bucketRegion == null){
             log.debug("Bucket region not found");
+            speechText = "Bucket region not valid. Please run flow executor again";
+            speech.setText(speechText);
+            return SpeechletResponse.newTellResponse(speech, card);
         }
         FlowInputVO flowInputVO = new FlowInputVO();
         flowInputVO.setFlowUuid(CREATE_BUCKET_FLOW_UUID);
@@ -303,10 +310,6 @@ public class ExecuteFlowSpeechlet implements Speechlet {
         Gson gson = new GsonBuilder().setPrettyPrinting().create();
         String bucketData = gson.toJson(flowInputVO);
         log.info(bucketData);
-        String speechText = "";
-        PlainTextOutputSpeech speech = new PlainTextOutputSpeech();
-        // Create the Simple card content.
-        SimpleCard card = new SimpleCard();
         FlowStatusVO flowStatusVO = callOOFlowExecutorAPI(bucketData);
         if(flowStatusVO.getStatus() == 201) {
             /*speechText = "Create bucket flow executed successfully. Please wait while we get you created bucket details.";
@@ -363,16 +366,35 @@ public class ExecuteFlowSpeechlet implements Speechlet {
         String subnet = intent.getSlot("SubnetId").getValue();
         log.debug("instanceName " +instanceName+ "region "+instanceRegion+"ami "+amazonMachineImage+"kp "+keyPairName+"subnet "+subnet);
         instanceRegion = SpeechToValidValuesUtil.getAWSRegion(instanceRegion.toLowerCase());
+        String speechText = "";
+        SimpleCard card = new SimpleCard();
+        // Create the plain text output.
+        PlainTextOutputSpeech speech = new PlainTextOutputSpeech();
         if(instanceRegion == null){
-            log.debug("Instance region not found");
+            log.debug("Instance region not valid");
+            speechText = "Instance region not valid. Please run flow executor again";
+            speech.setText(speechText);
+            return SpeechletResponse.newTellResponse(speech, card);
         }
         amazonMachineImage = SpeechToValidValuesUtil.getAMIId(amazonMachineImage.toLowerCase());
         if(amazonMachineImage == null){
-            log.debug("Amazon machine image not found");
+            log.debug("Invalid amazon machine image");
+            speechText = "Invalid amazon machine image. Please run flow executor again";
+            speech.setText(speechText);
+            return SpeechletResponse.newTellResponse(speech, card);
+        }
+        if(keyPairName != null && !keyPairName.toLowerCase().equals("voice key pair")){
+            log.debug("Invalid key pair value");
+            speechText = "Invalid key pair value. Please run flow executor again";
+            speech.setText(speechText);
+            return SpeechletResponse.newTellResponse(speech, card);
         }
         subnet = SpeechToValidValuesUtil.getSubnetId(subnet.toLowerCase());
         if(subnet == null){
-            log.debug("Subnet not found");
+            log.debug("Invalid subnet name");
+            speechText = "You have added invalid subnet. Please run flow executor again";
+            speech.setText(speechText);
+            return SpeechletResponse.newTellResponse(speech, card);
         }
         FlowInputVO flowInputVO = new FlowInputVO();
         flowInputVO.setFlowUuid(DEPLOY_INSTANCE_FLOW_UUID);
@@ -390,10 +412,6 @@ public class ExecuteFlowSpeechlet implements Speechlet {
         String instanceData = gson.toJson(flowInputVO);
         log.info(instanceData);
         FlowStatusVO flowStatusVO = callOOFlowExecutorAPI(instanceData);
-        String speechText = "";
-        SimpleCard card = new SimpleCard();
-        // Create the plain text output.
-        PlainTextOutputSpeech speech = new PlainTextOutputSpeech();
         if(flowStatusVO.getStatus() == 201) {
             //speechText = instanceName + " instance has been deployed in " +instanceRegion+ " with " + keyPairName+ " key pair value.";
             log.debug(flowStatusVO.getExecutionId());
@@ -414,12 +432,22 @@ public class ExecuteFlowSpeechlet implements Speechlet {
                     return SpeechletResponse.newTellResponse(speech, card);
                 }
             } else{
-                speechText = "Unable to deploy instance in AWS! Please check run id: "+flowStatusVO.getExecutionId()+" in OO machine for detailed error.";
-                card.setTitle("Error while deploy instance in AWS. Check run id: "+flowStatusVO.getExecutionId());
+                String failureReason = executionLogVO.getFlowOutput().getInstanceId();
+                if(failureReason != null){
+                speechText = "Unable to deploy instance in AWS! " +failureReason+ " Please check run id: "+flowStatusVO.getExecutionId()+" in OO machine for detailed error.";
+                card.setTitle("Error while deploy instance in AWS. " +failureReason+" Check run id: "+flowStatusVO.getExecutionId());
                 card.setContent(speechText);
                 // Create the plain text output.
                 speech.setText(speechText);
                 return SpeechletResponse.newTellResponse(speech, card);
+                } else {
+                    speechText = "Unable to deploy instance in AWS! Please check run id: "+flowStatusVO.getExecutionId()+" in OO machine for detailed error.";
+                    card.setTitle("Error while deploy instance in AWS. Check run id: "+flowStatusVO.getExecutionId());
+                    card.setContent(speechText);
+                    // Create the plain text output.
+                    speech.setText(speechText);
+                    return SpeechletResponse.newTellResponse(speech, card);
+                }
             }
         }
         // Create the Simple card content.
@@ -606,7 +634,7 @@ public class ExecuteFlowSpeechlet implements Speechlet {
 
         // Create the Simple card content.
         SimpleCard card = new SimpleCard();
-        card.setTitle("HelloWorld");
+        card.setTitle("Welcome to Voice Process Automation tool");
         card.setContent(speechText);
 
         // Create the plain text output.
