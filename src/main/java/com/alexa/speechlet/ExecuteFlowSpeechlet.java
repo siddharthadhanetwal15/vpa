@@ -33,6 +33,8 @@ public class ExecuteFlowSpeechlet implements Speechlet {
     public static final String CREATE_BUCKET_FLOW_UUID = "d689396e-1f48-4f1f-bd78-882f554c26ce";
     public static final String DEPLOY_INSTANCE_FLOW_UUID = "2bfe954e-7a22-480e-b32c-5e05da76446f";
     public static final String OO_URL = "https://52.90.34.74:8445/oo/";
+    public static final String OO_USERNAME = "admin";
+    public static final String OO_PASSWORD = "admin";
     public static final String V2_EXECUTIONS = "rest/v2/executions";
     public static final String V2_EXECUTION_LOG = "execution-log";
     @Override
@@ -325,7 +327,7 @@ public class ExecuteFlowSpeechlet implements Speechlet {
             //"A bucket named " + bucketName + ", has been created in " + bucketRegion;
 
             log.debug(flowStatusVO.getExecutionId());
-            ExecutionLogVO executionLogVO = checkBucketExecutionStatus(flowStatusVO.getExecutionId());
+            ExecutionLogVO executionLogVO = checkExecutionStatus(flowStatusVO.getExecutionId());
             String statusName = executionLogVO.getExecutionSummary().getResultStatusName();
             log.debug("status name: "+statusName);
             if(statusName.equals("success")){
@@ -415,7 +417,7 @@ public class ExecuteFlowSpeechlet implements Speechlet {
         if(flowStatusVO.getStatus() == 201) {
             //speechText = instanceName + " instance has been deployed in " +instanceRegion+ " with " + keyPairName+ " key pair value.";
             log.debug(flowStatusVO.getExecutionId());
-            ExecutionLogVO executionLogVO = checkDeployInstanceExecutionStatus(flowStatusVO.getExecutionId());
+            ExecutionLogVO executionLogVO = checkExecutionStatus(flowStatusVO.getExecutionId());
             String statusName = executionLogVO.getExecutionSummary().getResultStatusName();
             log.debug("status name: "+statusName);
             if(statusName.equals("success")){
@@ -492,7 +494,7 @@ public class ExecuteFlowSpeechlet implements Speechlet {
             con.setRequestMethod("POST");
             con.setDoOutput(true);
             con.setDoInput(true);
-            con.setRequestProperty("Authorization", "Basic YWRtaW46YWRtaW4=");
+            con.setRequestProperty("Authorization", "Basic " + getAuthorizationString(OO_USERNAME,OO_PASSWORD));
             con.setRequestProperty("Content-Type", "application/json");
             OutputStreamWriter wr = new OutputStreamWriter(con.getOutputStream());
             wr.write(data);
@@ -512,7 +514,7 @@ public class ExecuteFlowSpeechlet implements Speechlet {
         return flowStatusVO;
     }
 
-    public ExecutionLogVO checkBucketExecutionStatus(String executionId){
+    public ExecutionLogVO checkExecutionStatus(String executionId){
         int status = 0;
         String executionLog = null;
         ExecutionLogVO executionLogVO = null;
@@ -538,86 +540,31 @@ public class ExecuteFlowSpeechlet implements Speechlet {
                     return true;
                 }
             };
-            Thread.sleep(10000);
-            log.debug("Main thread waiting for 10 seconds");
+            Thread.sleep(5000);
+            log.debug("Main thread waiting for 5 seconds");
             // Install the all-trusting host verifier
             HttpsURLConnection.setDefaultHostnameVerifier(allHostsValid);
-
             URL url = new URL(OO_URL+V2_EXECUTIONS + "/" + executionId + "/" +V2_EXECUTION_LOG);
             HttpsURLConnection con = (HttpsURLConnection) url.openConnection();
             con.setRequestMethod("GET");
             con.setDoOutput(true);
             con.setDoInput(true);
-            con.setRequestProperty("Authorization", "Basic YWRtaW46YWRtaW4=");
+            con.setRequestProperty("Authorization", "Basic " + getAuthorizationString(OO_USERNAME,OO_PASSWORD));
             con.setRequestProperty("Content-Type", "application/json");
             status = con.getResponseCode();
             log.info(String.valueOf(status));
             BufferedReader br = new BufferedReader(new InputStreamReader(
                     (con.getInputStream())));
             executionLog = br.readLine();
-
+            br.close();
             log.debug("execution log: " + executionLog);
             GsonBuilder gson = new GsonBuilder();
             executionLogVO = gson.create().fromJson(executionLog, ExecutionLogVO.class);
             String executionStatus = executionLogVO.getExecutionSummary().getStatus();
-            log.debug("execution status: "+executionStatus);
-
-        } catch (Exception ex){
-            log.error(String.valueOf(ex));
-        }
-        return executionLogVO;
-    }
-
-    public ExecutionLogVO checkDeployInstanceExecutionStatus(String executionId){
-        int status = 0;
-        String executionLog = null;
-        ExecutionLogVO executionLogVO = null;
-        TrustManager[] trustAllCerts = new TrustManager[] {new X509TrustManager() {
-            public java.security.cert.X509Certificate[] getAcceptedIssuers() {
-                return null;
+            if(!(executionStatus.equals("COMPLETED") || executionStatus.equals("FAILED"))){
+                log.debug("execution status: "+executionStatus);
+                return checkExecutionStatus(executionId);
             }
-            public void checkClientTrusted(X509Certificate[] certs, String authType) {
-            }
-            public void checkServerTrusted(X509Certificate[] certs, String authType) {
-            }
-        }
-        };
-        // Install the all-trusting trust manager
-        try {
-            SSLContext sc = SSLContext.getInstance("SSL");
-            sc.init(null, trustAllCerts, new java.security.SecureRandom());
-            HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
-
-            // Create all-trusting host name verifier
-            HostnameVerifier allHostsValid = new HostnameVerifier() {
-                public boolean verify(String hostname, SSLSession session) {
-                    return true;
-                }
-            };
-            Thread.sleep(30000);
-            log.debug("Main thread waiting for 30 seconds");
-            // Install the all-trusting host verifier
-            HttpsURLConnection.setDefaultHostnameVerifier(allHostsValid);
-
-            URL url = new URL(OO_URL+V2_EXECUTIONS + "/" + executionId + "/" +V2_EXECUTION_LOG);
-            HttpsURLConnection con = (HttpsURLConnection) url.openConnection();
-            con.setRequestMethod("GET");
-            con.setDoOutput(true);
-            con.setDoInput(true);
-            con.setRequestProperty("Authorization", "Basic YWRtaW46YWRtaW4=");
-            con.setRequestProperty("Content-Type", "application/json");
-            status = con.getResponseCode();
-            log.info(String.valueOf(status));
-            BufferedReader br = new BufferedReader(new InputStreamReader(
-                    (con.getInputStream())));
-            executionLog = br.readLine();
-
-            log.debug("execution log: " + executionLog);
-            GsonBuilder gson = new GsonBuilder();
-            executionLogVO = gson.create().fromJson(executionLog, ExecutionLogVO.class);
-            String executionStatus = executionLogVO.getExecutionSummary().getStatus();
-            log.debug("execution status: "+executionStatus);
-
         } catch (Exception ex){
             log.error(String.valueOf(ex));
         }
@@ -704,5 +651,13 @@ public class ExecuteFlowSpeechlet implements Speechlet {
         reprompt.setOutputSpeech(speech);
 
         return SpeechletResponse.newAskResponse(speech, reprompt, card);
+    }
+
+    private String getAuthorizationString(String user, String password)
+    {
+        String authorizationString = user + ":" + password;
+        byte[] encodedAuthorization = Base64.getEncoder().encode(authorizationString.getBytes());
+        log.debug("encoded auth: "+new String(encodedAuthorization));
+        return new String(encodedAuthorization);
     }
 }
