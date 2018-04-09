@@ -28,7 +28,7 @@ public final class ExecuteFlowSpeechletRequestStreamHandler extends SpeechletReq
          * This Id can be found on https://developer.amazon.com/edw/home.html#/ "Edit" the relevant
          * Alexa Skill and put the relevant Application Ids in this Set.
          */
-        supportedApplicationIds.add("amzn1.ask.skill.bb36d308-5a8d-4265-82c5-35f2b67c3a5e");
+        supportedApplicationIds.add("amzn1.ask.skill.773a224a-d62b-4573-ac1f-aff81247570e");
     }
 
     public ExecuteFlowSpeechletRequestStreamHandler() {

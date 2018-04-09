@@ -6,6 +6,7 @@ import com.amazon.speech.speechlet.*;
 import com.amazon.speech.speechlet.dialog.directives.DelegateDirective;
 import com.amazon.speech.speechlet.dialog.directives.DialogIntent;
 import com.amazon.speech.speechlet.dialog.directives.DialogSlot;
+import com.amazon.speech.speechlet.dialog.directives.ElicitSlotDirective;
 import com.amazon.speech.ui.PlainTextOutputSpeech;
 import com.amazon.speech.ui.Reprompt;
 import com.amazon.speech.ui.SimpleCard;
@@ -72,11 +73,56 @@ public class ExecuteFlowSpeechlet implements Speechlet {
         //Get Dialog State
         IntentRequest.DialogState dialogueState = request.getDialogState();
         log.debug("Intent Name: "+intentName);
-        if ("CreateBucket".equals(intentName)) {
+        if ("BookFlightIntent".equals(intentName)) {
+            log.debug("dialogue state: " + dialogueState);
+            Map<String, Slot> slotMap = intent.getSlots();
+            log.debug("slot names, source : "+slotMap.get("Source"));
+            log.debug(intent.getSlot("Source").getName());
+            log.debug(intent.getSlot("Source").getValue());
+            SpeechletResponse speechletResponse = new SpeechletResponse();
+            /*DialogIntent dialogIntent = new DialogIntent();
+            dialogIntent.setName(intentName);*/
+            if (intent.getSlot("Source").getValue() == null){
+                log.debug("inside slot collection first condition");
+                PlainTextOutputSpeech plainTextOutputSpeech = new PlainTextOutputSpeech();
+                plainTextOutputSpeech.setText("Where would you like to fly from?");
+                ElicitSlotDirective elicitSlotDirective = new ElicitSlotDirective();
+                elicitSlotDirective.setSlotToElicit("Source");
+                //elicitSlotDirective.setUpdatedIntent(dialogIntent);
+                speechletResponse.setOutputSpeech(plainTextOutputSpeech);
+                List<Directive> directiveList = new ArrayList<Directive>();
+                directiveList.add(elicitSlotDirective);
+                speechletResponse.setDirectives(directiveList);
+                speechletResponse.setShouldEndSession(false);
+                return speechletResponse;
+            }
+            else if (intent.getSlot("Destination").getValue() == null){
+                log.debug("inside slot collection second condition");
+                PlainTextOutputSpeech plainTextOutputSpeech = new PlainTextOutputSpeech();
+                plainTextOutputSpeech.setText("Where would you like to fly to?");
+                ElicitSlotDirective elicitSlotDirective = new ElicitSlotDirective();
+                elicitSlotDirective.setSlotToElicit("Destination");
+                //elicitSlotDirective.setUpdatedIntent(dialogIntent);
+                speechletResponse.setOutputSpeech(plainTextOutputSpeech);
+                List<Directive> directiveList = new ArrayList<Directive>();
+                directiveList.add(elicitSlotDirective);
+                speechletResponse.setDirectives(directiveList);
+                speechletResponse.setShouldEndSession(false);
+                return speechletResponse;
+            } else {
+                log.debug(intent.getSlot("Source").getValue());
+                log.debug(intent.getSlot("Destination").getValue());
+                PlainTextOutputSpeech plainTextOutputSpeech = new PlainTextOutputSpeech();
+                plainTextOutputSpeech.setText("Your flight has been booked from "+intent.getSlot("Source").getValue()+" to "+intent.getSlot("Destination").getValue());
+                speechletResponse.setOutputSpeech(plainTextOutputSpeech);
+                return speechletResponse;
+            }
 
+
+            //return speechletResponse;
             //If the IntentRequest dialog state is STARTED and you accept Utterances that
             //allow a user to provide slots?  If not, you don't need to return the updatedIntent.
-            if (dialogueState.equals(IntentRequest.DialogState.STARTED)) {
+            /*if (dialogueState.equals(IntentRequest.DialogState.STARTED)) {
 
                 //Create a new DialogIntent
                 DialogIntent dialogIntent = new DialogIntent();
@@ -168,105 +214,8 @@ public class ExecuteFlowSpeechlet implements Speechlet {
 
                 //Return the SpeechletResponse.
                 return speechletResp;
-            }
-        }
-        else if("DeployInstance".equals(intentName)){
-            //If the IntentRequest dialog state is STARTED and you accept Utterances that
-            //allow a user to provide slots?  If not, you don't need to return the updatedIntent.
-            if (dialogueState.equals(IntentRequest.DialogState.STARTED)) {
-
-                //Create a new DialogIntent
-                DialogIntent dialogIntent = new DialogIntent();
-
-                //Set the name to match our intentName
-                dialogIntent.setName(intentName);
-
-                //Map over the Dialog Slots
-                //We do this to ensure that we include any slots already provided by the user
-                Map<String,DialogSlot> dialogSlots = new HashMap<String,DialogSlot>();
-
-                //Set up an iterator
-                Iterator iter = intent.getSlots().entrySet().iterator();
-
-                log.debug("Building DialogIntent");
-                //Iterate and copy over all slots/values
-                while (iter.hasNext()) {
-
-                    Map.Entry pair = (Map.Entry)iter.next();
-
-                    //Create a new DialogSlot
-                    DialogSlot dialogSlot = new DialogSlot();
-
-                    //Create a new Slot
-                    Slot slot = (Slot) pair.getValue();
-
-                    //Set the name of the slot
-                    dialogSlot.setName(slot.getName());
-
-                    //Copy over the value if its already set
-                    if (slot.getValue() != null)
-                        dialogSlot.setValue(slot.getValue());
-
-                    //Add this DialogSlot to the DialogSlots Hashmap.
-                    dialogSlots.put((String) pair.getKey(), dialogSlot);
-
-                    log.debug("DialogSlot " + (String) pair.getKey() + " with Name " + slot.getName() + " added.");
-                }
-
-                //Set the dialogSlots on the DialogIntent
-                dialogIntent.setSlots(dialogSlots);
-
-                //Create a DelegateDirective
-                DelegateDirective dd = new DelegateDirective();
-
-                //Add our new DialogIntent to the DelegateDirective
-                dd.setUpdatedIntent(dialogIntent);
-
-                //Directives must be provided as a List.  Add our DelegateDirective to the List.
-                List<Directive> directiveList = new ArrayList<Directive>();
-                directiveList.add(dd);
-
-                //Create a new SpeechletResponse and set the Directives to our List.
-                SpeechletResponse speechletResp = new SpeechletResponse();
-                speechletResp.setDirectives(directiveList);
-
-                //Only end the session if we have all the info. Assuming we still need to
-                //get more, we keep the session open.
-                speechletResp.setShouldEndSession(false);
-
-                //Return the SpeechletResponse.
-                return speechletResp;
-
-            } else if (dialogueState.equals(IntentRequest.DialogState.COMPLETED)) {
-
-                log.debug("onIntent, inside dialogueState IF statement");
-                //Generate our response and return.
-                return getDeployInstanceResponse(intent);
-
-            } else { // dialogueState.equals(DialogState.IN_PROGRESS)
-
-                log.debug("onIntent, inside dialogueState ELSE statement");
-
-                //Create an empty DelegateDirective
-                //This will tell the Alexa Engine to keep collecting information.
-                DelegateDirective dd = new DelegateDirective();
-
-                //Directives must be provided as a List.  Add our DelegateDirective to the List.
-                List<Directive> directiveList = new ArrayList<Directive>();
-                directiveList.add(dd);
-
-                //Create a new SpeechletResponse and set the Directives to our List.
-                SpeechletResponse speechletResp = new SpeechletResponse();
-                speechletResp.setDirectives(directiveList);
-
-                //Only end the session if we have all the info. Assuming we still need to
-                //get more, we keep the session open.
-                speechletResp.setShouldEndSession(false);
-
-                //Return the SpeechletResponse.
-                return speechletResp;
-            }
-        }else if ("AMAZON.HelpIntent".equals(intentName)) {
+            }*/
+        } else if ("AMAZON.HelpIntent".equals(intentName)) {
             return getHelpResponse();
         }else if ("AMAZON.StopIntent".equals(intentName)) {
             return getStopResponse();
