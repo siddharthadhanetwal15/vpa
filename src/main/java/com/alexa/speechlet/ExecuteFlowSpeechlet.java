@@ -28,13 +28,13 @@ import java.util.*;
 public class ExecuteFlowSpeechlet implements Speechlet {
     private static final Logger log = LoggerFactory.getLogger(ExecuteFlowSpeechlet.class);
     public static final String PROVIDER_SAP = "https://ec2.amazonaws.com:443";
-    public static final String PROVIDER_USERNAME = "AKIAJMPOLJMGV6NKEILQ";
-    public static final String PROVIDER_PASSWORD = "zYqFxY5H9SesrPh6jZcDokvwSmbKhp3jN9Rs4waK";
+    public static final String PROVIDER_USERNAME = "enter your aws secret access id";
+    public static final String PROVIDER_PASSWORD = "enter your aws secret access key";
     public static final String CREATE_BUCKET_FLOW_UUID = "d689396e-1f48-4f1f-bd78-882f554c26ce";
     public static final String DEPLOY_INSTANCE_FLOW_UUID = "2bfe954e-7a22-480e-b32c-5e05da76446f";
-    public static final String OO_URL = "https://52.90.34.74:8445/oo/";
-    public static final String OO_USERNAME = "admin";
-    public static final String OO_PASSWORD = "admin";
+    public static final String OO_URL = "Enter OO machine url here like this, https://51.91.33.73:8445/oo/";
+    public static final String OO_USERNAME = "OO username";
+    public static final String OO_PASSWORD = "OO password";
     public static final String V2_EXECUTIONS = "rest/v2/executions";
     public static final String V2_EXECUTION_LOG = "execution-log";
     @Override
