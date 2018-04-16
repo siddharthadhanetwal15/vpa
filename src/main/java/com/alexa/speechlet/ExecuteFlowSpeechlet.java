@@ -12,6 +12,7 @@ import com.amazon.speech.ui.Reprompt;
 import com.amazon.speech.ui.SimpleCard;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.reflect.TypeToken;
 import main.java.com.alexa.util.SpeechToValidValuesUtil;
 import main.java.com.alexa.vo.*;
 import org.slf4j.Logger;
@@ -29,13 +30,17 @@ import java.util.*;
 public class ExecuteFlowSpeechlet implements Speechlet {
     private static final Logger log = LoggerFactory.getLogger(ExecuteFlowSpeechlet.class);
     public static final String PROVIDER_SAP = "https://ec2.amazonaws.com:443";
-    public static final String PROVIDER_USERNAME = "AKIAJMPOLJMGV6NKEILQ";
-    public static final String PROVIDER_PASSWORD = "zYqFxY5H9SesrPh6jZcDokvwSmbKhp3jN9Rs4waK";
+    public static final String PROVIDER_USERNAME = "";
+    public static final String PROVIDER_PASSWORD = "";
     public static final String CREATE_BUCKET_FLOW_UUID = "d689396e-1f48-4f1f-bd78-882f554c26ce";
     public static final String DEPLOY_INSTANCE_FLOW_UUID = "2bfe954e-7a22-480e-b32c-5e05da76446f";
-    public static final String OO_URL = "https://52.90.34.74:8445/oo/";
+    public static final String OO_URL = "https://16.77.19.19:8445/oo/";
     public static final String V2_EXECUTIONS = "rest/v2/executions";
     public static final String V2_EXECUTION_LOG = "execution-log";
+    public static final String REST_V2 = "rest/v2/";
+    public static final String OO_USERNAME = "admin";
+    public static final String OO_PASSWORD = "admin";
+
     @Override
     public void onSessionStarted(final SessionStartedRequest request, final Session session)
             throws SpeechletException {
@@ -74,147 +79,45 @@ public class ExecuteFlowSpeechlet implements Speechlet {
         IntentRequest.DialogState dialogueState = request.getDialogState();
         log.debug("Intent Name: "+intentName);
         if ("BookFlightIntent".equals(intentName)) {
-            log.debug("dialogue state: " + dialogueState);
-            Map<String, Slot> slotMap = intent.getSlots();
-            log.debug("slot names, source : "+slotMap.get("Source"));
-            log.debug(intent.getSlot("Source").getName());
-            log.debug(intent.getSlot("Source").getValue());
-            SpeechletResponse speechletResponse = new SpeechletResponse();
-            /*DialogIntent dialogIntent = new DialogIntent();
-            dialogIntent.setName(intentName);*/
-            if (intent.getSlot("Source").getValue() == null){
-                log.debug("inside slot collection first condition");
-                PlainTextOutputSpeech plainTextOutputSpeech = new PlainTextOutputSpeech();
-                plainTextOutputSpeech.setText("Where would you like to fly from?");
-                ElicitSlotDirective elicitSlotDirective = new ElicitSlotDirective();
-                elicitSlotDirective.setSlotToElicit("Source");
-                //elicitSlotDirective.setUpdatedIntent(dialogIntent);
-                speechletResponse.setOutputSpeech(plainTextOutputSpeech);
-                List<Directive> directiveList = new ArrayList<Directive>();
-                directiveList.add(elicitSlotDirective);
-                speechletResponse.setDirectives(directiveList);
-                speechletResponse.setShouldEndSession(false);
-                return speechletResponse;
-            }
-            else if (intent.getSlot("Destination").getValue() == null){
-                log.debug("inside slot collection second condition");
-                PlainTextOutputSpeech plainTextOutputSpeech = new PlainTextOutputSpeech();
-                plainTextOutputSpeech.setText("Where would you like to fly to?");
-                ElicitSlotDirective elicitSlotDirective = new ElicitSlotDirective();
-                elicitSlotDirective.setSlotToElicit("Destination");
-                //elicitSlotDirective.setUpdatedIntent(dialogIntent);
-                speechletResponse.setOutputSpeech(plainTextOutputSpeech);
-                List<Directive> directiveList = new ArrayList<Directive>();
-                directiveList.add(elicitSlotDirective);
-                speechletResponse.setDirectives(directiveList);
-                speechletResponse.setShouldEndSession(false);
-                return speechletResponse;
-            } else {
-                log.debug(intent.getSlot("Source").getValue());
-                log.debug(intent.getSlot("Destination").getValue());
-                PlainTextOutputSpeech plainTextOutputSpeech = new PlainTextOutputSpeech();
-                plainTextOutputSpeech.setText("Your flight has been booked from "+intent.getSlot("Source").getValue()+" to "+intent.getSlot("Destination").getValue());
-                speechletResponse.setOutputSpeech(plainTextOutputSpeech);
-                return speechletResponse;
-            }
-
-
-            //return speechletResponse;
-            //If the IntentRequest dialog state is STARTED and you accept Utterances that
-            //allow a user to provide slots?  If not, you don't need to return the updatedIntent.
-            /*if (dialogueState.equals(IntentRequest.DialogState.STARTED)) {
-
-                //Create a new DialogIntent
-                DialogIntent dialogIntent = new DialogIntent();
-
-                //Set the name to match our intentName
-                dialogIntent.setName(intentName);
-
-                //Map over the Dialog Slots
-                //We do this to ensure that we include any slots already provided by the user
-                Map<String,DialogSlot> dialogSlots = new HashMap<String,DialogSlot>();
-
-                //Set up an iterator
-                Iterator iter = intent.getSlots().entrySet().iterator();
-
-                log.debug("Building DialogIntent");
-                //Iterate and copy over all slots/values
-                while (iter.hasNext()) {
-
-                    Map.Entry pair = (Map.Entry)iter.next();
-
-                    //Create a new DialogSlot
-                    DialogSlot dialogSlot = new DialogSlot();
-
-                    //Create a new Slot
-                    Slot slot = (Slot) pair.getValue();
-
-                    //Set the name of the slot
-                    dialogSlot.setName(slot.getName());
-
-                    //Copy over the value if its already set
-                    if (slot.getValue() != null)
-                        dialogSlot.setValue(slot.getValue());
-
-                    //Add this DialogSlot to the DialogSlots Hashmap.
-                    dialogSlots.put((String) pair.getKey(), dialogSlot);
-
-                    log.debug("DialogSlot " + (String) pair.getKey() + " with Name " + slot.getName() + " added.");
+            List<FlowsLibraryVO> flowsLibraryVOList = getAllFlows();
+            List<InputsVO> inputsVOList = getFlowInputs(CREATE_BUCKET_FLOW_UUID);
+            List<String> mandatoryInputsSlots = new ArrayList<>();
+            ListIterator<InputsVO> inputsVOListIterator = inputsVOList.listIterator();
+            while(inputsVOListIterator.hasNext()){
+                if(inputsVOListIterator.next().getMandatory().equals("true")){
+                    mandatoryInputsSlots.add(inputsVOListIterator.next().getName());
                 }
+            }
+            log.debug("dialogue state: " + dialogueState);
+            SpeechletResponse speechletResponse = new SpeechletResponse();
+            Map<String, Slot> slotMap = intent.getSlots();
 
-                //Set the dialogSlots on the DialogIntent
-                dialogIntent.setSlots(dialogSlots);
+            for (Map.Entry<String, Slot> slotEntry : slotMap.entrySet()) {
+                int i = 0;
+                log.debug("slot entry name : " + slotEntry.getValue().getName());
+                log.debug("slot entry value : " + slotEntry.getValue().getValue());
+                if(slotEntry.getValue().getValue() == null){
+                    PlainTextOutputSpeech plainTextOutputSpeech = new PlainTextOutputSpeech();
+                    //plainTextOutputSpeech.setText("What is "+slotEntry.getValue().getName()+" ?");
+                    plainTextOutputSpeech.setText("What is "+ mandatoryInputsSlots.get(i) +" ?");
+                    ElicitSlotDirective elicitSlotDirective = new ElicitSlotDirective();
+                    elicitSlotDirective.setSlotToElicit(slotEntry.getValue().getName());
+                    //elicitSlotDirective.setUpdatedIntent(dialogIntent);
+                    speechletResponse.setOutputSpeech(plainTextOutputSpeech);
+                    List<Directive> directiveList = new ArrayList<Directive>();
+                    directiveList.add(elicitSlotDirective);
+                    speechletResponse.setDirectives(directiveList);
+                    speechletResponse.setShouldEndSession(false);
+                    return speechletResponse;
+                }
+            }
+            log.debug(intent.getSlot("Source").getValue());
+            log.debug(intent.getSlot("Destination").getValue());
+            PlainTextOutputSpeech plainTextOutputSpeech = new PlainTextOutputSpeech();
+            plainTextOutputSpeech.setText("Your flight has been booked from "+intent.getSlot("Source").getValue()+" to "+intent.getSlot("Destination").getValue());
+            speechletResponse.setOutputSpeech(plainTextOutputSpeech);
+            return speechletResponse;
 
-                //Create a DelegateDirective
-                DelegateDirective dd = new DelegateDirective();
-
-                //Add our new DialogIntent to the DelegateDirective
-                dd.setUpdatedIntent(dialogIntent);
-
-                //Directives must be provided as a List.  Add our DelegateDirective to the List.
-                List<Directive> directiveList = new ArrayList<Directive>();
-                directiveList.add(dd);
-
-                //Create a new SpeechletResponse and set the Directives to our List.
-                SpeechletResponse speechletResp = new SpeechletResponse();
-                speechletResp.setDirectives(directiveList);
-
-                //Only end the session if we have all the info. Assuming we still need to
-                //get more, we keep the session open.
-                speechletResp.setShouldEndSession(false);
-
-                //Return the SpeechletResponse.
-                return speechletResp;
-
-            } else if (dialogueState.equals(IntentRequest.DialogState.COMPLETED)) {
-
-                log.debug("onIntent, inside dialogueState IF statement");
-                //Generate our response and return.
-                return getCreateBucketResponse(intent);
-
-            } else { // dialogueState.equals(DialogState.IN_PROGRESS)
-
-                log.debug("onIntent, inside dialogueState ELSE statement");
-
-                //Create an empty DelegateDirective
-                //This will tell the Alexa Engine to keep collecting information.
-                DelegateDirective dd = new DelegateDirective();
-
-                //Directives must be provided as a List.  Add our DelegateDirective to the List.
-                List<Directive> directiveList = new ArrayList<Directive>();
-                directiveList.add(dd);
-
-                //Create a new SpeechletResponse and set the Directives to our List.
-                SpeechletResponse speechletResp = new SpeechletResponse();
-                speechletResp.setDirectives(directiveList);
-
-                //Only end the session if we have all the info. Assuming we still need to
-                //get more, we keep the session open.
-                speechletResp.setShouldEndSession(false);
-
-                //Return the SpeechletResponse.
-                return speechletResp;
-            }*/
         } else if ("AMAZON.HelpIntent".equals(intentName)) {
             return getHelpResponse();
         }else if ("AMAZON.StopIntent".equals(intentName)) {
@@ -225,6 +128,218 @@ public class ExecuteFlowSpeechlet implements Speechlet {
             log.debug("when no matching flow/intent found");
             throw new SpeechletException("Invalid Intent");
         }
+    }
+
+    public static void main(String[] args) {
+        ExecuteFlowSpeechlet executeFlowSpeechlet = new ExecuteFlowSpeechlet();
+        List<FlowsLibraryVO> flowsLibraryVOList = executeFlowSpeechlet.getAllFlows();
+        flowsLibraryVOList = executeFlowSpeechlet.filterLeafFlows(flowsLibraryVOList);
+        String flowName = "Create Azure File";
+        List<FlowsLibraryVO> resultedFlows = executeFlowSpeechlet.searchFlows(flowName, flowsLibraryVOList);
+        List<InputsVO> inputsVOList = executeFlowSpeechlet.getFlowInputs(CREATE_BUCKET_FLOW_UUID);
+        List<String> mandatoryInputsSlots = new ArrayList<>();
+        ListIterator<InputsVO> inputsVOListIterator = inputsVOList.listIterator();
+        while(inputsVOListIterator.hasNext()){
+            if(inputsVOListIterator.next().getMandatory().equals("true")){
+                mandatoryInputsSlots.add(inputsVOListIterator.next().getName());
+            }
+        }
+
+    }
+
+    public List<FlowsLibraryVO> searchFlows(String flowName, List<FlowsLibraryVO> flowsLibraryVOList){
+        ListIterator<FlowsLibraryVO> libraryVOListIterator = flowsLibraryVOList.listIterator()!=null?flowsLibraryVOList.listIterator():null;
+        while(libraryVOListIterator!=null && libraryVOListIterator.hasNext()){
+            if(!libraryVOListIterator.next().getName().equalsIgnoreCase(flowName)){
+                libraryVOListIterator.remove();
+            }
+        }
+        return flowsLibraryVOList;
+    }
+
+
+    public List<FlowsLibraryVO> filterLeafFlows(List<FlowsLibraryVO> flowsLibraryVOList){
+        ListIterator<FlowsLibraryVO> libraryVOListIterator = flowsLibraryVOList.listIterator()!=null?flowsLibraryVOList.listIterator():null;
+        while(libraryVOListIterator!=null && libraryVOListIterator.hasNext()){
+            if(!libraryVOListIterator.next().getLeaf()){
+                libraryVOListIterator.remove();
+            }
+        }
+        return flowsLibraryVOList;
+    }
+
+    public List<FlowsLibraryVO> getAllFlows(){
+        int status = 0;
+        String flowLibrary;
+        FlowsLibraryVO flowsLibraryVO = null;
+        List<FlowsLibraryVO> flowsLibraryVOList = null;
+        TrustManager[] trustAllCerts = new TrustManager[] {new X509TrustManager() {
+            public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+                return null;
+            }
+            public void checkClientTrusted(X509Certificate[] certs, String authType) {
+            }
+            public void checkServerTrusted(X509Certificate[] certs, String authType) {
+            }
+        }
+        };
+        // Install the all-trusting trust manager
+        try {
+            SSLContext sc = SSLContext.getInstance("SSL");
+            sc.init(null, trustAllCerts, new java.security.SecureRandom());
+            HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+
+            // Create all-trusting host name verifier
+            HostnameVerifier allHostsValid = new HostnameVerifier() {
+                public boolean verify(String hostname, SSLSession session) {
+                    return true;
+                }
+            };
+            // Install the all-trusting host verifier
+            HttpsURLConnection.setDefaultHostnameVerifier(allHostsValid);
+
+            URL url = new URL(OO_URL+REST_V2+"flows/library");
+            HttpsURLConnection con = (HttpsURLConnection) url.openConnection();
+            con.setRequestMethod("GET");
+            con.setDoOutput(true);
+            con.setDoInput(true);
+            con.setRequestProperty("Authorization", "Basic YWRtaW46YWRtaW4=");
+            con.setRequestProperty("Content-Type", "application/json");
+            status = con.getResponseCode();
+            log.info(String.valueOf(status));
+            BufferedReader br = new BufferedReader(new InputStreamReader(
+                    (con.getInputStream())));
+            flowLibrary = br.readLine();
+            log.debug("execution log: " + flowLibrary);
+            GsonBuilder gson = new GsonBuilder();
+            flowsLibraryVOList = gson.create().fromJson(flowLibrary, new TypeToken<List<FlowsLibraryVO>>(){}.getType());
+            log.debug("flow inputs list: "+flowsLibraryVOList.get(0).getName());
+        } catch (Exception ex){
+            log.error(String.valueOf(ex));
+        }
+        return flowsLibraryVOList;
+    }
+    public List<InputsVO> getFlowInputs(String flowUUID){
+        int status = 0;
+        String flowInputs;
+        InputsVO inputsVO = null;
+        List<InputsVO> inputsVOList = null;
+        TrustManager[] trustAllCerts = new TrustManager[] {new X509TrustManager() {
+            public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+                return null;
+            }
+            public void checkClientTrusted(X509Certificate[] certs, String authType) {
+            }
+            public void checkServerTrusted(X509Certificate[] certs, String authType) {
+            }
+        }
+        };
+        // Install the all-trusting trust manager
+        try {
+            SSLContext sc = SSLContext.getInstance("SSL");
+            sc.init(null, trustAllCerts, new java.security.SecureRandom());
+            HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+
+            // Create all-trusting host name verifier
+            HostnameVerifier allHostsValid = new HostnameVerifier() {
+                public boolean verify(String hostname, SSLSession session) {
+                    return true;
+                }
+            };
+            // Install the all-trusting host verifier
+            HttpsURLConnection.setDefaultHostnameVerifier(allHostsValid);
+
+            URL url = new URL(OO_URL+REST_V2+"flows/"+flowUUID+"/inputs");
+            HttpsURLConnection con = (HttpsURLConnection) url.openConnection();
+            con.setRequestMethod("GET");
+            con.setDoOutput(true);
+            con.setDoInput(true);
+            con.setRequestProperty("Authorization", "Basic YWRtaW46YWRtaW4=");
+            con.setRequestProperty("Content-Type", "application/json");
+            status = con.getResponseCode();
+            log.info(String.valueOf(status));
+            BufferedReader br = new BufferedReader(new InputStreamReader(
+                    (con.getInputStream())));
+            flowInputs = br.readLine();
+            log.debug("execution log: " + flowInputs);
+            GsonBuilder gson = new GsonBuilder();
+            inputsVOList = gson.create().fromJson(flowInputs, new TypeToken<List<InputsVO>>(){}.getType());
+            //flowInputsVO = gson.create().fromJson(flowInputs, FlowInputsVO.class);
+            log.debug("flow inputs list: "+inputsVOList.get(0).getName());
+        } catch (Exception ex){
+            log.error(String.valueOf(ex));
+        }
+        return inputsVOList;
+    }
+
+    private SpeechletResponse getExecuteFlowResponse(Intent intent) {
+        Map<String, Slot> slotMap = intent.getSlots();
+
+        for (Map.Entry<String, Slot> slotEntry : slotMap.entrySet()) {
+            slotEntry.getKey();
+            slotEntry.getValue();
+        }
+
+        String speechText = "";
+        SimpleCard card = new SimpleCard();
+        // Create the plain text output.
+        PlainTextOutputSpeech speech = new PlainTextOutputSpeech();
+
+        FlowInputVO flowInputVO = new FlowInputVO();
+        flowInputVO.setFlowUuid(DEPLOY_INSTANCE_FLOW_UUID);
+        EC2InstanceVO ec2InstanceVO = new EC2InstanceVO();
+        ec2InstanceVO.setProviderSAP(PROVIDER_SAP);
+        ec2InstanceVO.setProviderUsername(PROVIDER_USERNAME);
+        ec2InstanceVO.setProviderPassword(PROVIDER_PASSWORD);
+        flowInputVO.setInputs(ec2InstanceVO);
+        Gson gson = new GsonBuilder().setPrettyPrinting().create();
+        String instanceData = gson.toJson(flowInputVO);
+        log.info(instanceData);
+        FlowStatusVO flowStatusVO = callOOFlowExecutorAPI(instanceData);
+        if(flowStatusVO.getStatus() == 201) {
+            //speechText = instanceName + " instance has been deployed in " +instanceRegion+ " with " + keyPairName+ " key pair value.";
+            log.debug(flowStatusVO.getExecutionId());
+            ExecutionLogVO executionLogVO = checkExecutionStatus(flowStatusVO.getExecutionId());
+            String statusName = executionLogVO.getExecutionSummary().getResultStatusName();
+            log.debug("status name: "+statusName);
+            if(statusName.equals("success")){
+                String instanceId = executionLogVO.getFlowOutput().getInstanceId();
+                String availabilityZone = executionLogVO.getFlowOutput().getAvailabilityZone();
+                log.debug("inside success");
+                if((instanceId != null && instanceId.length() != 0)&&(availabilityZone != null && availabilityZone.length() != 0)) {
+                    log.debug("inside success if");
+                    speechText = "Flow executed successfully";
+                    card.setTitle("Flow executed successfully");
+                    card.setContent(speechText);
+                    // Create the plain text output.
+                    speech.setText(speechText);
+                    return SpeechletResponse.newTellResponse(speech, card);
+                }
+            } else{
+                String failureReason = executionLogVO.getFlowOutput().getInstanceId();
+                if(failureReason != null){
+                    speechText = "Unable to deploy instance in AWS! " +failureReason+ " Please check run id: "+flowStatusVO.getExecutionId()+" in OO machine for detailed error.";
+                    card.setTitle("Error while deploy instance in AWS. " +failureReason+" Check run id: "+flowStatusVO.getExecutionId());
+                    card.setContent(speechText);
+                    // Create the plain text output.
+                    speech.setText(speechText);
+                    return SpeechletResponse.newTellResponse(speech, card);
+                } else {
+                    speechText = "Unable to deploy instance in AWS! Please check run id: "+flowStatusVO.getExecutionId()+" in OO machine for detailed error.";
+                    card.setTitle("Error while deploy instance in AWS. Check run id: "+flowStatusVO.getExecutionId());
+                    card.setContent(speechText);
+                    // Create the plain text output.
+                    speech.setText(speechText);
+                    return SpeechletResponse.newTellResponse(speech, card);
+                }
+            }
+        }
+        // Create the Simple card content.
+        card.setTitle("Unable to trigger OO flow for deploy instance");
+        card.setContent(speechText);
+        speech.setText(speechText);
+
+        return SpeechletResponse.newTellResponse(speech, card);
     }
 
     /**
@@ -274,7 +389,7 @@ public class ExecuteFlowSpeechlet implements Speechlet {
             //"A bucket named " + bucketName + ", has been created in " + bucketRegion;
 
             log.debug(flowStatusVO.getExecutionId());
-            ExecutionLogVO executionLogVO = checkBucketExecutionStatus(flowStatusVO.getExecutionId());
+            ExecutionLogVO executionLogVO = checkExecutionStatus(flowStatusVO.getExecutionId());
             String statusName = executionLogVO.getExecutionSummary().getResultStatusName();
             log.debug("status name: "+statusName);
             if(statusName.equals("success")){
@@ -364,7 +479,7 @@ public class ExecuteFlowSpeechlet implements Speechlet {
         if(flowStatusVO.getStatus() == 201) {
             //speechText = instanceName + " instance has been deployed in " +instanceRegion+ " with " + keyPairName+ " key pair value.";
             log.debug(flowStatusVO.getExecutionId());
-            ExecutionLogVO executionLogVO = checkDeployInstanceExecutionStatus(flowStatusVO.getExecutionId());
+            ExecutionLogVO executionLogVO = checkExecutionStatus(flowStatusVO.getExecutionId());
             String statusName = executionLogVO.getExecutionSummary().getResultStatusName();
             log.debug("status name: "+statusName);
             if(statusName.equals("success")){
@@ -461,7 +576,7 @@ public class ExecuteFlowSpeechlet implements Speechlet {
         return flowStatusVO;
     }
 
-    public ExecutionLogVO checkBucketExecutionStatus(String executionId){
+    public ExecutionLogVO checkExecutionStatus(String executionId){
         int status = 0;
         String executionLog = null;
         ExecutionLogVO executionLogVO = null;
@@ -487,86 +602,31 @@ public class ExecuteFlowSpeechlet implements Speechlet {
                     return true;
                 }
             };
-            Thread.sleep(10000);
-            log.debug("Main thread waiting for 10 seconds");
+            Thread.sleep(5000);
+            log.debug("Main thread waiting for 5 seconds");
             // Install the all-trusting host verifier
             HttpsURLConnection.setDefaultHostnameVerifier(allHostsValid);
-
             URL url = new URL(OO_URL+V2_EXECUTIONS + "/" + executionId + "/" +V2_EXECUTION_LOG);
             HttpsURLConnection con = (HttpsURLConnection) url.openConnection();
             con.setRequestMethod("GET");
             con.setDoOutput(true);
             con.setDoInput(true);
-            con.setRequestProperty("Authorization", "Basic YWRtaW46YWRtaW4=");
+            con.setRequestProperty("Authorization", "Basic " + getAuthorizationString(OO_USERNAME,OO_PASSWORD));
             con.setRequestProperty("Content-Type", "application/json");
             status = con.getResponseCode();
             log.info(String.valueOf(status));
             BufferedReader br = new BufferedReader(new InputStreamReader(
                     (con.getInputStream())));
             executionLog = br.readLine();
-
+            br.close();
             log.debug("execution log: " + executionLog);
             GsonBuilder gson = new GsonBuilder();
             executionLogVO = gson.create().fromJson(executionLog, ExecutionLogVO.class);
             String executionStatus = executionLogVO.getExecutionSummary().getStatus();
-            log.debug("execution status: "+executionStatus);
-
-        } catch (Exception ex){
-            log.error(String.valueOf(ex));
-        }
-        return executionLogVO;
-    }
-
-    public ExecutionLogVO checkDeployInstanceExecutionStatus(String executionId){
-        int status = 0;
-        String executionLog = null;
-        ExecutionLogVO executionLogVO = null;
-        TrustManager[] trustAllCerts = new TrustManager[] {new X509TrustManager() {
-            public java.security.cert.X509Certificate[] getAcceptedIssuers() {
-                return null;
+            if(!(executionStatus.equals("COMPLETED") || executionStatus.equals("FAILED"))){
+                log.debug("execution status: "+executionStatus);
+                return checkExecutionStatus(executionId);
             }
-            public void checkClientTrusted(X509Certificate[] certs, String authType) {
-            }
-            public void checkServerTrusted(X509Certificate[] certs, String authType) {
-            }
-        }
-        };
-        // Install the all-trusting trust manager
-        try {
-            SSLContext sc = SSLContext.getInstance("SSL");
-            sc.init(null, trustAllCerts, new java.security.SecureRandom());
-            HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
-
-            // Create all-trusting host name verifier
-            HostnameVerifier allHostsValid = new HostnameVerifier() {
-                public boolean verify(String hostname, SSLSession session) {
-                    return true;
-                }
-            };
-            Thread.sleep(30000);
-            log.debug("Main thread waiting for 30 seconds");
-            // Install the all-trusting host verifier
-            HttpsURLConnection.setDefaultHostnameVerifier(allHostsValid);
-
-            URL url = new URL(OO_URL+V2_EXECUTIONS + "/" + executionId + "/" +V2_EXECUTION_LOG);
-            HttpsURLConnection con = (HttpsURLConnection) url.openConnection();
-            con.setRequestMethod("GET");
-            con.setDoOutput(true);
-            con.setDoInput(true);
-            con.setRequestProperty("Authorization", "Basic YWRtaW46YWRtaW4=");
-            con.setRequestProperty("Content-Type", "application/json");
-            status = con.getResponseCode();
-            log.info(String.valueOf(status));
-            BufferedReader br = new BufferedReader(new InputStreamReader(
-                    (con.getInputStream())));
-            executionLog = br.readLine();
-
-            log.debug("execution log: " + executionLog);
-            GsonBuilder gson = new GsonBuilder();
-            executionLogVO = gson.create().fromJson(executionLog, ExecutionLogVO.class);
-            String executionStatus = executionLogVO.getExecutionSummary().getStatus();
-            log.debug("execution status: "+executionStatus);
-
         } catch (Exception ex){
             log.error(String.valueOf(ex));
         }
@@ -653,5 +713,13 @@ public class ExecuteFlowSpeechlet implements Speechlet {
         reprompt.setOutputSpeech(speech);
 
         return SpeechletResponse.newAskResponse(speech, reprompt, card);
+    }
+
+    private String getAuthorizationString(String user, String password)
+    {
+        String authorizationString = user + ":" + password;
+        byte[] encodedAuthorization = Base64.getEncoder().encode(authorizationString.getBytes());
+        log.debug("encoded auth: "+new String(encodedAuthorization));
+        return new String(encodedAuthorization);
     }
 }
